@@ -1,0 +1,252 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String?
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  bets     Bet[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Bet {
+  id        String     @id @default(cuid())
+  userId    String
+  oddsType  OddsType
+  team      String
+  opponent  String
+  odds      Float
+  amount    Float
+  result    BetResult  @default(PENDING)
+  profit    Float?
+  gameDate  DateTime
+  gameId    String?
+  notes     String?
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game Game? @relation(fields: [gameId], references: [id])
+
+  @@index([userId])
+  @@index([gameDate])
+  @@map("bets")
+}
+
+model Prediction {
+  id                  String    @id @default(cuid())
+  gameId              String    @unique
+  homeTeam            String
+  awayTeam            String
+  predictedWinner     String
+  confidence          Float
+  homeWinProbability  Float
+  awayWinProbability  Float
+  spreadPrediction    Float?
+  totalPrediction     Float?
+  actualWinner        String?
+  isCorrect           Boolean?
+  gameDate            DateTime
+  factors             Json?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  game Game @relation(fields: [gameId], references: [id])
+
+  @@index([gameDate])
+  @@map("predictions")
+}
+
+model Game {
+  id           String     @id @default(cuid())
+  externalId   String     @unique
+  homeTeam     String
+  homeTeamId   Int
+  awayTeam     String
+  awayTeamId   Int
+  homeScore    Int?
+  awayScore    Int?
+  status       GameStatus @default(SCHEDULED)
+  gameDate     DateTime
+  season       Int
+  odds         Json?
+  venue        String?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  prediction Prediction?
+  bets       Bet[]
+
+  @@index([gameDate])
+  @@index([status])
+  @@map("games")
+}
+
+model Team {
+  id           String   @id @default(cuid())
+  externalId   Int      @unique
+  name         String
+  fullName     String
+  abbreviation String
+  city         String
+  conference   String
+  division     String
+  logoUrl      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  stats TeamStats?
+
+  @@map("teams")
+}
+
+model TeamStats {
+  id              String   @id @default(cuid())
+  teamId          String   @unique
+  season          Int
+  wins            Int      @default(0)
+  losses          Int      @default(0)
+  homeWins        Int      @default(0)
+  homeLosses      Int      @default(0)
+  awayWins        Int      @default(0)
+  awayLosses      Int      @default(0)
+  pointsPerGame   Float    @default(0)
+  pointsAgainst   Float    @default(0)
+  streak          Int      @default(0)
+  last10Wins      Int      @default(0)
+  last10Losses    Int      @default(0)
+  atsWins         Int      @default(0)
+  atsLosses       Int      @default(0)
+  atsPushes       Int      @default(0)
+  overUnderRecord Json?
+  updatedAt       DateTime @updatedAt
+
+  team Team @relation(fields: [teamId], references: [id])
+
+  @@map("team_stats")
+}
+
+enum OddsType {
+  MONEYLINE
+  SPREAD
+  TOTAL
+  PARLAY
+}
+
+enum BetResult {
+  PENDING
+  WIN
+  LOSS
+  PUSH
+  VOID
+}
+
+enum GameStatus {
+  SCHEDULED
+  IN_PROGRESS
+  FINAL
+  POSTPONED
+  CANCELLED
+}
+
+model InjuryFlag {
+  id         String    @id @default(cuid())
+  playerId   Int
+  playerName String
+  teamId     String
+  status     String    // out, questionable, probable
+  impact     String    // high, medium, low
+  notes      String?
+  flaggedAt  DateTime  @default(now())
+  clearedAt  DateTime?
+  flaggedBy  String    // manual
+
+  @@index([teamId])
+  @@index([playerId])
+  @@map("injury_flags")
+}
+
+model EloHistory {
+  id       String   @id @default(cuid())
+  teamId   String
+  elo      Float
+  gameId   String
+  change   Float
+  date     DateTime
+  isPlayoff Boolean @default(false)
+
+  @@index([teamId])
+  @@index([date])
+  @@map("elo_history")
+}
+
+model BacktestResult {
+  id                 String   @id @default(cuid())
+  season             Int
+  modelVersion       String
+  totalGames         Int
+  correctPredictions Int
+  accuracy           Float
+  roiIfBetting       Float
+  byMonth            Json?
+  vsClosingLine      Json?
+  createdAt          DateTime @default(now())
+
+  @@unique([season, modelVersion])
+  @@map("backtest_results")
+}
