@@ -43,11 +43,23 @@ export async function GET(request: NextRequest) {
       predictions.map((p) => [p.gameId, p])
     );
 
-    // Combine games with predictions
-    const gamesWithPredictions = games.map((game) => ({
-      ...game,
-      prediction: predictionsMap.get(game.id.toString()) || null,
-    }));
+    // Get odds for these games (same pattern as games/today)
+    const odds = await nbaData.getOdds();
+
+    // Combine games with predictions AND odds
+    const gamesWithPredictions = games.map((game) => {
+      const gameOdds = odds.find(
+        (o) =>
+          o.homeTeam.includes(game.home_team.name) ||
+          o.awayTeam.includes(game.visitor_team.name)
+      );
+
+      return {
+        ...game,
+        prediction: predictionsMap.get(game.id.toString()) || null,
+        odds: gameOdds ? nbaData.getBestOdds(gameOdds) : null,
+      };
+    });
 
     return NextResponse.json({
       data: gamesWithPredictions,

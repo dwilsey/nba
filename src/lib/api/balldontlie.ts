@@ -78,6 +78,7 @@ class BallDontLieClient {
   async getGames(options?: {
     page?: number;
     perPage?: number;
+    cursor?: number;
     dates?: string[];
     seasons?: number[];
     teamIds?: number[];
@@ -86,8 +87,8 @@ class BallDontLieClient {
     endDate?: string;
   }): Promise<APIResponse<Game[]>> {
     const params: Record<string, string | number | undefined> = {
-      page: options?.page,
       per_page: options?.perPage,
+      cursor: options?.cursor,
       postseason: options?.postseason ? 'true' : undefined,
       start_date: options?.startDate,
       end_date: options?.endDate,

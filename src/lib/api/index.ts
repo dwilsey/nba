@@ -6,6 +6,7 @@ import { balldontlie } from './balldontlie';
 import { oddsApi } from './odds';
 import { backupApi } from './backup-api';
 import { Game, Team, GameOdds } from '@/types';
+import { isCurrentNBATeam } from '@/lib/utils/teams';
 
 class NBADataClient {
   private primaryFailed = false;
@@ -27,20 +28,26 @@ class NBADataClient {
   }
 
   async getTeams(): Promise<Team[]> {
+    let teams: Team[] = [];
+
     if (this.shouldRetryPrimary()) {
       try {
-        const teams = await balldontlie.getTeams();
+        teams = await balldontlie.getTeams();
         this.markPrimarySuccess();
-        return teams;
       } catch (error) {
         console.error('Primary API failed for teams:', error);
         this.markPrimaryFailed();
       }
     }
 
-    // Fallback to backup
-    console.log('Using backup API for teams');
-    return backupApi.getTeams();
+    // Fallback to backup if primary failed or no teams returned
+    if (teams.length === 0) {
+      console.log('Using backup API for teams');
+      teams = await backupApi.getTeams();
+    }
+
+    // Filter to only current NBA teams (exclude defunct teams like Chicago Stags)
+    return teams.filter((team) => isCurrentNBATeam(team.id));
   }
 
   async getTeam(id: number): Promise<Team | null> {
