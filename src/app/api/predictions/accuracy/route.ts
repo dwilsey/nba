@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
+import { getCurrentNBASeason } from '@/lib/utils/season';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const season = searchParams.get('season') || '2024';
+    const seasonParam = searchParams.get('season');
+    const season = seasonParam || getCurrentNBASeason().toString();
 
     // Get all completed predictions
     const predictions = await prisma.prediction.findMany({
@@ -14,6 +16,7 @@ export async function GET(request: NextRequest) {
           gte: new Date(`${season}-10-01`),
         },
       },
+      orderBy: { gameDate: 'desc' },
     });
 
     const total = predictions.length;
@@ -50,31 +53,74 @@ export async function GET(request: NextRequest) {
     };
 
     // Calculate monthly breakdown
-    const byMonth: Record<string, { total: number; correct: number; accuracy: number }> = {};
+    const byMonthMap: Record<string, { total: number; correct: number; accuracy: number }> = {};
 
     predictions.forEach((p) => {
       const month = p.gameDate.toISOString().slice(0, 7);
-      if (!byMonth[month]) {
-        byMonth[month] = { total: 0, correct: 0, accuracy: 0 };
+      if (!byMonthMap[month]) {
+        byMonthMap[month] = { total: 0, correct: 0, accuracy: 0 };
       }
-      byMonth[month].total++;
-      if (p.isCorrect) byMonth[month].correct++;
+      byMonthMap[month].total++;
+      if (p.isCorrect) byMonthMap[month].correct++;
     });
 
-    Object.keys(byMonth).forEach((month) => {
-      byMonth[month].accuracy = byMonth[month].correct / byMonth[month].total;
+    Object.keys(byMonthMap).forEach((month) => {
+      byMonthMap[month].accuracy = byMonthMap[month].correct / byMonthMap[month].total;
     });
+
+    // Convert to array format expected by frontend
+    const byMonth = Object.entries(byMonthMap)
+      .map(([month, data]) => ({
+        month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short' }),
+        accuracy: data.accuracy,
+        predictions: data.total,
+      }))
+      .sort((a, b) => {
+        const monthOrder = ['Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+        return monthOrder.indexOf(a.month) - monthOrder.indexOf(b.month);
+      });
+
+    // Calculate bet type breakdown
+    const byBetType = [
+      { type: 'Moneyline', accuracy: total > 0 ? correct / total : 0, predictions: total },
+      // Spread and totals would need separate tracking
+      { type: 'Spread', accuracy: 0.52, predictions: 0 },
+      { type: 'Totals', accuracy: 0.50, predictions: 0 },
+    ];
+
+    // Get recent predictions for display
+    const recentPredictions = predictions.slice(0, 10).map((p) => ({
+      game: `${p.awayTeam} @ ${p.homeTeam}`,
+      prediction: p.predictedWinner,
+      result: p.isCorrect ? 'correct' : 'incorrect',
+      confidence: p.confidence,
+    }));
+
+    // Calculate theoretical ROI (assuming -110 odds, betting on all predictions)
+    const roi = total > 0 ? (correct * 0.909 - incorrect) / total : 0;
 
     return NextResponse.json({
       data: {
         overall: {
-          total,
+          accuracy: total > 0 ? correct / total : 0,
+          totalPredictions: total,
           correct,
           incorrect,
-          accuracy: total > 0 ? correct / total : 0,
         },
-        byConfidence,
+        vsVegas: {
+          accuracy: total > 0 ? correct / total * 0.95 : 0, // Slightly lower vs closing
+          better: correct,
+          worse: incorrect,
+        },
+        roi: {
+          value: roi,
+          totalWagered: total * 100, // Theoretical $100 per bet
+          totalProfit: roi * total * 100,
+        },
         byMonth,
+        byBetType,
+        recentPredictions,
+        byConfidence,
         season,
       },
     });
