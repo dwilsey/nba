@@ -15,6 +15,44 @@ import {
   ExternalLink,
 } from 'lucide-react';
 
+interface PredictionFactors {
+  eloDifference?: {
+    value: number;
+    homeElo: number;
+    awayElo: number;
+  };
+  recentForm?: {
+    homeL10: { wins: number; losses: number };
+    awayL10: { wins: number; losses: number };
+    value: number;
+  };
+  homeCourt?: {
+    advantage: number;
+    isNeutral: boolean;
+  };
+  restAdvantage?: {
+    homeDaysRest: number;
+    awayDaysRest: number;
+    homeBackToBack: boolean;
+    awayBackToBack: boolean;
+    value: number;
+  };
+  headToHead?: {
+    homeWins: number;
+    awayWins: number;
+    value: number;
+  };
+  travel?: {
+    awayTravelMiles: number;
+    value: number;
+  };
+  injuries?: {
+    homeImpact: number;
+    awayImpact: number;
+    value: number;
+  };
+}
+
 interface GameCardProps {
   game: {
     id: string;
@@ -28,6 +66,7 @@ interface GameCardProps {
       confidence: number;
       hasValue: boolean;
       valueBet: 'home' | 'away' | null;
+      factors?: PredictionFactors | null;
     };
     odds: {
       homeML: number;
@@ -167,22 +206,87 @@ export function GameCard({ game }: GameCardProps) {
             <h4 className="text-sm font-medium text-white mb-3">Prediction Factors</h4>
 
             <div className="space-y-2 text-sm">
+              {/* ELO Difference */}
               <div className="flex justify-between">
                 <span className="text-slate-400">ELO Difference</span>
-                <span className="text-slate-300">+45 (Home favored)</span>
+                <span className="text-slate-300">
+                  {prediction.factors?.eloDifference ? (
+                    <>
+                      {prediction.factors.eloDifference.value >= 0 ? '+' : ''}
+                      {Math.round(prediction.factors.eloDifference.value)}{' '}
+                      ({prediction.factors.eloDifference.value >= 0 ? 'Home favored' : 'Away favored'})
+                    </>
+                  ) : (
+                    'N/A'
+                  )}
+                </span>
               </div>
+              {/* Recent Form */}
               <div className="flex justify-between">
                 <span className="text-slate-400">Recent Form (L10)</span>
-                <span className="text-slate-300">7-3 vs 6-4</span>
+                <span className="text-slate-300">
+                  {prediction.factors?.recentForm ? (
+                    <>
+                      {prediction.factors.recentForm.homeL10.wins}-{prediction.factors.recentForm.homeL10.losses} vs{' '}
+                      {prediction.factors.recentForm.awayL10.wins}-{prediction.factors.recentForm.awayL10.losses}
+                    </>
+                  ) : (
+                    'N/A'
+                  )}
+                </span>
               </div>
+              {/* Home Court */}
               <div className="flex justify-between">
                 <span className="text-slate-400">Home Court</span>
-                <span className="text-slate-300">+3.2 points</span>
+                <span className="text-slate-300">
+                  {prediction.factors?.homeCourt ? (
+                    prediction.factors.homeCourt.isNeutral
+                      ? 'Neutral site'
+                      : `+${(prediction.factors.homeCourt.advantage / 25).toFixed(1)} points`
+                  ) : (
+                    '+4.0 points'
+                  )}
+                </span>
               </div>
+              {/* Rest Advantage */}
               <div className="flex justify-between">
                 <span className="text-slate-400">Rest Advantage</span>
-                <span className="text-slate-300">Even</span>
+                <span className="text-slate-300">
+                  {prediction.factors?.restAdvantage ? (
+                    <>
+                      {prediction.factors.restAdvantage.homeBackToBack && 'Home B2B'}
+                      {prediction.factors.restAdvantage.awayBackToBack && 'Away B2B'}
+                      {!prediction.factors.restAdvantage.homeBackToBack &&
+                        !prediction.factors.restAdvantage.awayBackToBack &&
+                        (prediction.factors.restAdvantage.value === 0
+                          ? 'Even'
+                          : prediction.factors.restAdvantage.value > 0
+                          ? `Home +${prediction.factors.restAdvantage.homeDaysRest - prediction.factors.restAdvantage.awayDaysRest} days`
+                          : `Away +${prediction.factors.restAdvantage.awayDaysRest - prediction.factors.restAdvantage.homeDaysRest} days`)}
+                    </>
+                  ) : (
+                    'Even'
+                  )}
+                </span>
               </div>
+              {/* Head to Head */}
+              {prediction.factors?.headToHead && (prediction.factors.headToHead.homeWins > 0 || prediction.factors.headToHead.awayWins > 0) && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Head-to-Head</span>
+                  <span className="text-slate-300">
+                    {prediction.factors.headToHead.homeWins}-{prediction.factors.headToHead.awayWins} (Season)
+                  </span>
+                </div>
+              )}
+              {/* Travel */}
+              {prediction.factors?.travel && prediction.factors.travel.awayTravelMiles > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Away Travel</span>
+                  <span className="text-slate-300">
+                    {Math.round(prediction.factors.travel.awayTravelMiles).toLocaleString()} miles
+                  </span>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-2 mt-4">

@@ -55,6 +55,7 @@ function transformGameData(game: any) {
           confidence: game.prediction.confidence || 0.5,
           hasValue: game.prediction.hasValue || false,
           valueBet: game.prediction.valueBet || null,
+          factors: game.prediction.factors || null,
         }
       : {
           homeWinProb: 0.5,
@@ -63,6 +64,7 @@ function transformGameData(game: any) {
           confidence: 0.5,
           hasValue: false,
           valueBet: null,
+          factors: null,
         },
     odds: game.odds
       ? {

@@ -2,20 +2,36 @@
 
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/Card';
-import { TrendingUp, Target, DollarSign, BarChart2, ArrowRight } from 'lucide-react';
-
-// Mock data - will be replaced with actual API data
-const mockAccuracy = {
-  overallAccuracy: 0.583,
-  vsClosingLine: 0.524,
-  roiIfBetting: 0.042,
-  totalPredictions: 847,
-  currentStreak: 5,
-  streakType: 'win',
-};
+import { TrendingUp, Target, DollarSign, BarChart2, ArrowRight, Loader2 } from 'lucide-react';
+import { usePredictionAccuracy } from '@/hooks/usePredictions';
+import { getCurrentNBASeason } from '@/lib/utils/season';
 
 export function ModelAccuracyBanner() {
-  const { overallAccuracy, vsClosingLine, roiIfBetting, totalPredictions } = mockAccuracy;
+  const currentSeason = getCurrentNBASeason();
+  const { accuracy, isLoading } = usePredictionAccuracy(currentSeason);
+
+  // Use real data if available, otherwise use placeholder values
+  const overallAccuracy = accuracy?.overall?.accuracy || 0;
+  const vsClosingLine = accuracy?.vsVegas?.accuracy || 0;
+  const roiIfBetting = accuracy?.roi?.value || 0;
+  const totalPredictions = accuracy?.overall?.totalPredictions || 0;
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <Card className="bg-gradient-to-r from-blue-900/50 to-slate-800 border-blue-800/50">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-center gap-2 text-slate-400">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Loading model performance...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Show placeholder when no predictions yet
+  const hasData = totalPredictions > 0;
 
   return (
     <Card className="bg-gradient-to-r from-blue-900/50 to-slate-800 border-blue-800/50">
@@ -36,7 +52,7 @@ export function ModelAccuracyBanner() {
               <TrendingUp className="h-4 w-4 text-green-400" />
               <div>
                 <div className="text-lg font-bold text-white">
-                  {(overallAccuracy * 100).toFixed(1)}%
+                  {hasData ? `${(overallAccuracy * 100).toFixed(1)}%` : '--'}
                 </div>
                 <div className="text-xs text-slate-400">Win Rate</div>
               </div>
@@ -46,7 +62,7 @@ export function ModelAccuracyBanner() {
               <BarChart2 className="h-4 w-4 text-blue-400" />
               <div>
                 <div className="text-lg font-bold text-white">
-                  {(vsClosingLine * 100).toFixed(1)}%
+                  {hasData ? `${(vsClosingLine * 100).toFixed(1)}%` : '--'}
                 </div>
                 <div className="text-xs text-slate-400">vs Vegas</div>
               </div>
@@ -55,8 +71,8 @@ export function ModelAccuracyBanner() {
             <div className="flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-green-400" />
               <div>
-                <div className="text-lg font-bold text-green-400">
-                  +{(roiIfBetting * 100).toFixed(1)}%
+                <div className={`text-lg font-bold ${roiIfBetting >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {hasData ? `${roiIfBetting >= 0 ? '+' : ''}${(roiIfBetting * 100).toFixed(1)}%` : '--'}
                 </div>
                 <div className="text-xs text-slate-400">ROI</div>
               </div>

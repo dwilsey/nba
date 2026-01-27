@@ -129,25 +129,85 @@ export async function GET() {
 
           const prediction = generatePrediction(predictionInput);
 
-          // Store in map for response (could also persist to DB here)
-          predictionsMap.set(gameId, {
-            id: `gen-${gameId}`,
-            gameId,
-            homeTeam: prediction.homeTeam,
-            awayTeam: prediction.awayTeam,
-            predictedWinner: prediction.predictedWinner,
-            confidence: prediction.confidence,
-            homeWinProbability: prediction.homeWinProbability,
-            awayWinProbability: prediction.awayWinProbability,
-            spreadPrediction: prediction.predictedSpread,
-            totalPrediction: prediction.predictedTotal,
-            gameDate: new Date(game.date),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            actualWinner: null,
-            isCorrect: null,
-            factors: prediction.factors as any,
-          });
+          // Store in database for tracking
+          try {
+            // First, ensure the Game record exists
+            const dbGame = await prisma.game.upsert({
+              where: { externalId: gameId },
+              update: {
+                status: game.status === 'Final' ? 'FINAL' : game.status === 'In Progress' ? 'IN_PROGRESS' : 'SCHEDULED',
+                homeScore: game.home_team_score || null,
+                awayScore: game.visitor_team_score || null,
+              },
+              create: {
+                externalId: gameId,
+                homeTeam: game.home_team.full_name,
+                homeTeamId: game.home_team.id,
+                awayTeam: game.visitor_team.full_name,
+                awayTeamId: game.visitor_team.id,
+                homeScore: game.home_team_score || null,
+                awayScore: game.visitor_team_score || null,
+                status: game.status === 'Final' ? 'FINAL' : game.status === 'In Progress' ? 'IN_PROGRESS' : 'SCHEDULED',
+                gameDate: new Date(game.date),
+                season: game.season,
+              },
+            });
+
+            // Now save the prediction
+            const savedPrediction = await prisma.prediction.upsert({
+              where: { gameId: dbGame.id },
+              update: {
+                // Only update if game hasn't started yet
+                ...(game.status !== 'Final' && game.status !== 'In Progress'
+                  ? {
+                      predictedWinner: prediction.predictedWinner,
+                      confidence: prediction.confidence,
+                      homeWinProbability: prediction.homeWinProbability,
+                      awayWinProbability: prediction.awayWinProbability,
+                      spreadPrediction: prediction.predictedSpread,
+                      totalPrediction: prediction.predictedTotal,
+                      factors: prediction.factors as any,
+                    }
+                  : {}),
+              },
+              create: {
+                gameId: dbGame.id,
+                homeTeam: prediction.homeTeam,
+                awayTeam: prediction.awayTeam,
+                predictedWinner: prediction.predictedWinner,
+                confidence: prediction.confidence,
+                homeWinProbability: prediction.homeWinProbability,
+                awayWinProbability: prediction.awayWinProbability,
+                spreadPrediction: prediction.predictedSpread,
+                totalPrediction: prediction.predictedTotal,
+                gameDate: new Date(game.date),
+                factors: prediction.factors as any,
+              },
+            });
+
+            predictionsMap.set(gameId, savedPrediction);
+          } catch (dbError) {
+            console.error(`Failed to save prediction for game ${gameId}:`, dbError);
+            // Still store in map for response
+            predictionsMap.set(gameId, {
+              id: `gen-${gameId}`,
+              gameId,
+              homeTeam: prediction.homeTeam,
+              awayTeam: prediction.awayTeam,
+              predictedWinner: prediction.predictedWinner,
+              confidence: prediction.confidence,
+              homeWinProbability: prediction.homeWinProbability,
+              awayWinProbability: prediction.awayWinProbability,
+              spreadPrediction: prediction.predictedSpread,
+              totalPrediction: prediction.predictedTotal,
+              gameDate: new Date(game.date),
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              actualWinner: null,
+              isCorrect: null,
+              factors: prediction.factors as any,
+            });
+          }
         } catch (error) {
           console.error(`Failed to generate prediction for game ${gameId}:`, error);
         }
