@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/db/prisma';
 import { nbaData } from '@/lib/api';
 import { generatePrediction, PredictionInput } from '@/lib/predictions/model';
+import { calculateL10Record } from '@/lib/predictions/factors';
 
 // Default ELO rating for teams without history
 const DEFAULT_ELO = 1500;
@@ -49,6 +50,26 @@ async function generatePredictionsForGames(games: any[]) {
     const homeElo = homeTeam ? await getTeamElo(homeTeam.id) : DEFAULT_ELO;
     const awayElo = awayTeam ? await getTeamElo(awayTeam.id) : DEFAULT_ELO;
 
+    // Fetch recent games for L10 calculation
+    let homeL10 = { wins: 5, losses: 5 };
+    let awayL10 = { wins: 5, losses: 5 };
+    try {
+      const [homeRecentGames, awayRecentGames] = await Promise.all([
+        nbaData.getTeamRecentGames(game.home_team.id, 10),
+        nbaData.getTeamRecentGames(game.visitor_team.id, 10),
+      ]);
+
+      if (homeRecentGames.length > 0) {
+        homeL10 = calculateL10Record(homeRecentGames, game.home_team.id);
+      }
+      if (awayRecentGames.length > 0) {
+        awayL10 = calculateL10Record(awayRecentGames, game.visitor_team.id);
+      }
+    } catch (l10Error) {
+      console.error(`Failed to fetch L10 data for game ${game.id}:`, l10Error);
+      // Continue with default L10 values
+    }
+
     // Prepare input for prediction model
     const input: PredictionInput = {
       gameId: game.id.toString(),
@@ -60,6 +81,8 @@ async function generatePredictionsForGames(games: any[]) {
       awayElo,
       gameDate: new Date(game.date),
       isPlayoff: game.postseason || false,
+      homeL10,
+      awayL10,
     };
 
     // Generate prediction

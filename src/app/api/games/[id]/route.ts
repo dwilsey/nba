@@ -4,6 +4,7 @@ import prisma from '@/lib/db/prisma';
 import { generatePrediction, PredictionInput } from '@/lib/predictions/model';
 import { ELO_CONFIG } from '@/lib/predictions/elo';
 import { estimateEloFromStats } from '@/lib/predictions/elo-init';
+import { calculateL10Record } from '@/lib/predictions/factors';
 import { getCurrentNBASeason, getSeasonDateRange } from '@/lib/utils/season';
 
 export async function GET(
@@ -159,6 +160,26 @@ export async function GET(
       homeElo = homeElo ?? ELO_CONFIG.INITIAL_ELO;
       awayElo = awayElo ?? ELO_CONFIG.INITIAL_ELO;
 
+      // Fetch recent games for L10 calculation
+      let homeL10 = { wins: 5, losses: 5 };
+      let awayL10 = { wins: 5, losses: 5 };
+      try {
+        const [homeRecentGames, awayRecentGames] = await Promise.all([
+          nbaData.getTeamRecentGames(game.home_team.id, 10),
+          nbaData.getTeamRecentGames(game.visitor_team.id, 10),
+        ]);
+
+        if (homeRecentGames.length > 0) {
+          homeL10 = calculateL10Record(homeRecentGames, game.home_team.id);
+        }
+        if (awayRecentGames.length > 0) {
+          awayL10 = calculateL10Record(awayRecentGames, game.visitor_team.id);
+        }
+      } catch (l10Error) {
+        console.error(`Failed to fetch L10 data for game ${gameId}:`, l10Error);
+        // Continue with default L10 values
+      }
+
       const predictionInput: PredictionInput = {
         gameId: gameId.toString(),
         homeTeam: game.home_team.full_name,
@@ -169,6 +190,8 @@ export async function GET(
         awayElo,
         gameDate: new Date(game.date),
         isPlayoff: game.postseason || false,
+        homeL10,
+        awayL10,
       };
 
       const generatedPrediction = generatePrediction(predictionInput);

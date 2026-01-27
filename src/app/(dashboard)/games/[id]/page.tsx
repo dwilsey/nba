@@ -429,11 +429,21 @@ export default function GameDetailPage() {
                                 {formatSpread(odds.spread)}
                               </span>
                             </p>
-                            {Math.abs(prediction.spreadPrediction - odds.spread) >= 2 && (
-                              <p className="mt-2 text-yellow-400">
-                                Line value detected ({(prediction.spreadPrediction - odds.spread).toFixed(1)} point difference)
-                              </p>
-                            )}
+                            {(() => {
+                              const spreadDiff = prediction.spreadPrediction - odds.spread;
+                              const absSpreadDiff = Math.abs(spreadDiff);
+                              if (absSpreadDiff >= 2) {
+                                // Positive diff: model spread is higher (less negative), value on away
+                                // Negative diff: model spread is lower (more negative), value on home
+                                const valueSide = spreadDiff > 0 ? game.visitor_team?.full_name : game.home_team?.full_name;
+                                return (
+                                  <p className="mt-2 text-yellow-400">
+                                    {absSpreadDiff.toFixed(1)} pts value on {valueSide}
+                                  </p>
+                                );
+                              }
+                              return null;
+                            })()}
                           </div>
                         </div>
                       )}

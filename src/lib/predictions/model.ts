@@ -107,10 +107,10 @@ export function generatePrediction(input: PredictionInput): GamePrediction {
   const awayWinProb = 1 - homeWinProb;
 
   // Calculate predicted spread from adjusted probabilities
-  // Convert probability edge to points (rough: 2% prob = 1 point)
-  const probEdge = homeWinProb - 0.5;
-  const baseSpread = eloToSpread(input.homeElo - input.awayElo + homeAdvantage);
-  const adjustedSpread = baseSpread + (factorAdjustment * 50); // Factor adjustment in points
+  // Negative spread = home favored (matching Vegas convention)
+  // eloToSpread returns positive when home ELO is higher, so we negate it
+  const baseSpread = -eloToSpread(input.homeElo - input.awayElo + homeAdvantage);
+  const adjustedSpread = baseSpread - (factorAdjustment * 50); // Factor adjustment in points (negative = favors home)
 
   // Calculate confidence
   const eloDiff = Math.abs(input.homeElo - input.awayElo);

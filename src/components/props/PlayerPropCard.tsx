@@ -40,7 +40,7 @@ export function PlayerPropCard({
     );
   }
 
-  if (isError || !data) {
+  if (isError || !data || !data.player) {
     return (
       <Card className={cn('min-h-[200px] flex items-center justify-center', className)}>
         <p className="text-gray-500">Failed to load prop prediction</p>
@@ -58,6 +58,15 @@ interface PlayerPropCardContentProps {
 
 export function PlayerPropCardContent({ data, className }: PlayerPropCardContentProps) {
   const { player, propType, line, stats, prediction } = data;
+
+  // Safety check for required data
+  if (!player || !stats || !prediction) {
+    return (
+      <Card className={cn('min-h-[200px] flex items-center justify-center', className)}>
+        <p className="text-gray-500">Invalid prop data</p>
+      </Card>
+    );
+  }
 
   const getRecommendationStyle = (rec: 'over' | 'under' | 'pass') => {
     switch (rec) {

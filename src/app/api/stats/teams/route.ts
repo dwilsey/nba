@@ -108,6 +108,60 @@ async function fetchAllSeasonGames(): Promise<Game[]> {
   return allGames;
 }
 
+// Calculate ATS record from predictions for a team
+async function calculateATSRecord(teamName: string): Promise<{ atsWins: number; atsLosses: number; atsPushes: number }> {
+  try {
+    const predictions = await prisma.prediction.findMany({
+      where: {
+        OR: [
+          { homeTeam: teamName },
+          { awayTeam: teamName },
+        ],
+        actualWinner: { not: null }, // Only completed games
+      },
+      include: {
+        game: true,
+      },
+    });
+
+    let atsWins = 0;
+    let atsLosses = 0;
+    let atsPushes = 0;
+
+    for (const pred of predictions) {
+      if (!pred.game || pred.game.homeScore === null || pred.game.awayScore === null) continue;
+      if (pred.spreadPrediction === null) continue;
+
+      const isHome = pred.homeTeam === teamName;
+      const actualMargin = pred.game.homeScore - pred.game.awayScore; // Positive = home won by X
+
+      // Determine if team covered
+      // If home team: did they beat the spread?
+      // If away team: did they cover as underdog?
+      if (isHome) {
+        // Home team covers if they win by more than the spread
+        // Spread is negative for favorites, so -7 means home needs to win by 8+
+        // actualMargin > -spread means they covered
+        const coverMargin = actualMargin + pred.spreadPrediction; // Add because spread is negative when favored
+        if (coverMargin > 0) atsWins++;
+        else if (coverMargin < 0) atsLosses++;
+        else atsPushes++;
+      } else {
+        // Away team covers if they lose by less than the spread (or win)
+        // If spread is -7 (home favored), away covers if margin < 7
+        const coverMargin = -actualMargin - pred.spreadPrediction;
+        if (coverMargin > 0) atsWins++;
+        else if (coverMargin < 0) atsLosses++;
+        else atsPushes++;
+      }
+    }
+
+    return { atsWins, atsLosses, atsPushes };
+  } catch {
+    return { atsWins: 0, atsLosses: 0, atsPushes: 0 };
+  }
+}
+
 // Calculate team stats from pre-fetched games
 function calculateStatsFromGames(teamId: number, allGames: Game[]) {
   // Filter games for this team
@@ -258,9 +312,12 @@ export async function GET(request: NextRequest) {
       allSeasonGames = await fetchAllSeasonGames();
     }
 
-    // Combine team data with stats
-    const teamsWithStats = teams.map((team) => {
+    // Combine team data with stats (using Promise.all for ATS calculations)
+    const teamsWithStats = await Promise.all(teams.map(async (team) => {
       const dbStats = statsMap.get(team.id);
+
+      // Calculate ATS record from predictions
+      const atsRecord = await calculateATSRecord(team.full_name);
 
       // If database has real stats, use them
       if (dbStats && (dbStats.wins > 0 || dbStats.losses > 0)) {
@@ -285,8 +342,8 @@ export async function GET(request: NextRequest) {
             last10: `${dbStats.last10Wins}-${dbStats.last10Losses}`,
             last10Wins: dbStats.last10Wins,
             last10Losses: dbStats.last10Losses,
-            atsWins: dbStats.atsWins,
-            atsLosses: dbStats.atsLosses,
+            atsWins: atsRecord.atsWins || dbStats.atsWins,
+            atsLosses: atsRecord.atsLosses || dbStats.atsLosses,
           },
         };
       }
@@ -296,7 +353,11 @@ export async function GET(request: NextRequest) {
         const calculatedStats = calculateStatsFromGames(team.id, allSeasonGames);
         return {
           ...team,
-          stats: calculatedStats,
+          stats: {
+            ...calculatedStats,
+            atsWins: atsRecord.atsWins,
+            atsLosses: atsRecord.atsLosses,
+          },
         };
       }
 
@@ -305,7 +366,7 @@ export async function GET(request: NextRequest) {
         ...team,
         stats: null,
       };
-    });
+    }));
 
     // Sort by win percentage
     teamsWithStats.sort((a, b) => {
