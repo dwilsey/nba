@@ -1,0 +1,58 @@
+{
+  "trained_at": "2026-01-28T03:18:26.651136",
+  "training_games": 800,
+  "test_games": 200,
+  "metrics": {
+    "accuracy": 0.63,
+    "log_loss": 0.6326275116848773,
+    "auc_roc": 0.7053571428571428,
+    "total_games": 200,
+    "predicted_home_wins": 112,
+    "actual_home_wins": 112,
+    "calibration": {
+      ">50%": {
+        "accuracy": 0.63,
+        "count": 200
+      },
+      ">55%": {
+        "accuracy": 0.6666666666666666,
+        "count": 171
+      },
+      ">60%": {
+        "accuracy": 0.6912751677852349,
+        "count": 149
+      },
+      ">65%": {
+        "accuracy": 0.7142857142857143,
+        "count": 126
+      },
+      ">70%": {
+        "accuracy": 0.7289719626168224,
+        "count": 107
+      }
+    }
+  },
+  "version": "v1.0.0",
+  "feature_names": [
+    "adj_nrtg_diff",
+    "home_adj_ortg",
+    "home_adj_drtg",
+    "away_adj_ortg",
+    "away_adj_drtg",
+    "efg_diff",
+    "tov_diff",
+    "oreb_diff",
+    "ftr_diff",
+    "def_efg_diff",
+    "def_tov_diff",
+    "def_oreb_diff",
+    "def_ftr_diff",
+    "four_factors_composite",
+    "pace_diff",
+    "projected_game_pace",
+    "bpm_diff",
+    "top_5_bpm_diff",
+    "spread_movement",
+    "opening_spread"
+  ]
+}

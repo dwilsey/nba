@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  xgboost-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nba-xgboost-service
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://localhost:5432/nba_betting}
+      - DEBUG=${DEBUG:-false}
+      - MODEL_PATH=/app/models/xgb_nba_v1.json
+    volumes:
+      # Mount models directory for easy model updates (rw for training)
+      - ./models:/app/models:rw
+      # Mount app directory for development
+      - ./app:/app/app:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - nba-network
+
+  # Development service with hot reload
+  xgboost-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nba-xgboost-dev
+    ports:
+      - "8001:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://localhost:5432/nba_betting}
+      - DEBUG=true
+    volumes:
+      - ./:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    profiles:
+      - dev
+    networks:
+      - nba-network
+
+networks:
+  nba-network:
+    driver: bridge

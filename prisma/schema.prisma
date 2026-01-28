@@ -106,6 +106,14 @@ model Prediction {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
+  // Results tracking fields
+  actualHomeScore     Int?
+  actualAwayScore     Int?
+  closingSpread       Float?    // Vegas spread at tip-off
+  closingTotal        Float?    // Vegas total at tip-off
+  spreadResult        String?   // "WIN", "LOSS", "PUSH"
+  totalResult         String?   // "OVER", "UNDER", "PUSH"
+
   game Game @relation(fields: [gameId], references: [id])
 
   @@index([gameDate])
@@ -129,8 +137,10 @@ model Game {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  prediction Prediction?
-  bets       Bet[]
+  prediction        Prediction?
+  xgboostPrediction XGBoostPrediction?
+  bets              Bet[]
+  oddsHistory       OddsHistory[]
 
   @@index([gameDate])
   @@index([status])
@@ -249,4 +259,131 @@ model BacktestResult {
 
   @@unique([season, modelVersion])
   @@map("backtest_results")
+}
+
+model OddsHistory {
+  id            String   @id @default(cuid())
+  gameId        String
+  capturedAt    DateTime @default(now())
+  isClosing     Boolean  @default(false) // True = captured at game start (tip-off)
+  homeMoneyline Int
+  awayMoneyline Int
+  spread        Float    // Negative = home favored
+  spreadOdds    Int
+  total         Float
+  overOdds      Int
+  underOdds     Int
+  bookmaker     String
+
+  game Game @relation(fields: [gameId], references: [id])
+
+  @@index([gameId])
+  @@index([capturedAt])
+  @@index([isClosing])
+  @@map("odds_history")
+}
+
+model InjuryReport {
+  id          String   @id @default(cuid())
+  playerId    Int
+  playerName  String
+  teamId      Int
+  teamName    String
+  status      String   // Only track: OUT, DOUBTFUL (ignore Questionable/Probable)
+  injury      String   // "Knee", "Ankle", etc.
+  returnDate  String?  // "Day-to-Day", "2-3 weeks", etc.
+  source      String   // "CBS", "ESPN", "RotoWire", "BBRef"
+  impactLevel String   // "HIGH" (starter), "MEDIUM" (rotation), "LOW" (bench)
+  fetchedAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([playerId, fetchedAt])
+  @@index([teamId])
+  @@index([status])
+  @@map("injury_reports")
+}
+
+// XGBoost Model Advanced Stats
+
+model TeamAdvancedStats {
+  id            String   @id @default(cuid())
+  teamId        String
+  season        Int
+  date          DateTime
+
+  // Raw ratings
+  offRating     Float
+  defRating     Float
+  netRating     Float
+  pace          Float
+
+  // Adjusted ratings (SOS)
+  adjOffRating  Float?
+  adjDefRating  Float?
+  adjNetRating  Float?
+
+  // Four Factors - Offense
+  efgPct        Float    // Effective FG%
+  tovPct        Float    // Turnover %
+  orebPct       Float    // Offensive rebound %
+  ftr           Float    // Free throw rate
+
+  // Four Factors - Defense (opponent stats)
+  oppEfgPct     Float
+  oppTovPct     Float
+  oppOrebPct    Float
+  oppFtr        Float
+
+  // Strength of Schedule
+  sosOrtg       Float?   // Opponents' average ORTG
+  sosDrtg       Float?   // Opponents' average DRTG
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([teamId, date])
+  @@index([teamId])
+  @@index([season])
+  @@map("team_advanced_stats")
+}
+
+model PlayerBPM {
+  id            String   @id @default(cuid())
+  playerId      Int
+  playerName    String
+  teamId        String
+  season        Int
+  bpm           Float    // Box Plus/Minus
+  obpm          Float    // Offensive BPM
+  dbpm          Float    // Defensive BPM
+  vorp          Float    // Value Over Replacement Player
+  minutesPlayed Int
+  gamesPlayed   Int      @default(0)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([playerId, season])
+  @@index([teamId])
+  @@index([season])
+  @@map("player_bpm")
+}
+
+model XGBoostPrediction {
+  id                  String   @id @default(cuid())
+  gameId              String   @unique
+  homeWinProbability  Float
+  awayWinProbability  Float
+  predictedWinner     String
+  predictedSpread     Float
+  predictedTotal      Float?
+  confidence          Float
+  featureVector       Json     // Store all 20 features
+  modelVersion        String
+  generatedAt         DateTime @default(now())
+
+  game                Game     @relation(fields: [gameId], references: [id])
+
+  @@index([generatedAt])
+  @@map("xgboost_predictions")
 }
