@@ -4,14 +4,17 @@ import { balldontlie } from '@/lib/api';
 
 /**
  * Verify predictions for completed games
- * Updates actualWinner and isCorrect fields for games that have finished
+ * Updates actualWinner, isCorrect, and spread/total results
  */
 export async function POST() {
   try {
     // Get all predictions that haven't been verified yet
     const unverifiedPredictions = await prisma.prediction.findMany({
       where: {
-        isCorrect: null,
+        OR: [
+          { isCorrect: null },
+          { spreadResult: null },
+        ],
       },
       include: {
         game: true,
@@ -26,6 +29,7 @@ export async function POST() {
     }
 
     let verified = 0;
+    let spreadResultsCalculated = 0;
     let errors = 0;
 
     for (const prediction of unverifiedPredictions) {
@@ -43,12 +47,71 @@ export async function POST() {
               : game.visitor_team.full_name;
           const isCorrect = prediction.predictedWinner === actualWinner;
 
-          // Update prediction with result
+          // Get closing odds for spread/total calculation
+          const closingOdds = await prisma.oddsHistory.findFirst({
+            where: {
+              gameId: prediction.game.id,
+              isClosing: true,
+            },
+            orderBy: { capturedAt: 'desc' },
+          });
+
+          const closingSpread = closingOdds?.spread ?? prediction.closingSpread;
+          const closingTotal = closingOdds?.total ?? prediction.closingTotal;
+
+          // Calculate spread result
+          let spreadResult: string | null = null;
+          if (closingSpread !== null && closingSpread !== undefined) {
+            const actualMargin = homeScore - awayScore;
+            // Spread is from home team perspective (negative = home favored)
+            if (actualMargin > closingSpread) {
+              spreadResult = 'HOME_COVER';
+            } else if (actualMargin < closingSpread) {
+              spreadResult = 'AWAY_COVER';
+            } else {
+              spreadResult = 'PUSH';
+            }
+
+            // Also check if our spread prediction was more accurate than Vegas
+            if (prediction.spreadPrediction !== null) {
+              const predictedDiff = Math.abs(actualMargin - prediction.spreadPrediction);
+              const vegasDiff = Math.abs(actualMargin - closingSpread);
+
+              if (predictedDiff < vegasDiff) {
+                spreadResult = 'WIN'; // Our spread was closer to actual
+              } else if (predictedDiff > vegasDiff) {
+                spreadResult = 'LOSS'; // Vegas was closer
+              }
+            }
+
+            spreadResultsCalculated++;
+          }
+
+          // Calculate total result
+          let totalResult: string | null = null;
+          if (closingTotal !== null && closingTotal !== undefined) {
+            const actualTotal = homeScore + awayScore;
+            if (actualTotal > closingTotal) {
+              totalResult = 'OVER';
+            } else if (actualTotal < closingTotal) {
+              totalResult = 'UNDER';
+            } else {
+              totalResult = 'PUSH';
+            }
+          }
+
+          // Update prediction with all results
           await prisma.prediction.update({
             where: { id: prediction.id },
             data: {
               actualWinner,
               isCorrect,
+              actualHomeScore: homeScore,
+              actualAwayScore: awayScore,
+              closingSpread: closingSpread ?? undefined,
+              closingTotal: closingTotal ?? undefined,
+              spreadResult,
+              totalResult,
             },
           });
 
@@ -76,6 +139,7 @@ export async function POST() {
     return NextResponse.json({
       message: `Verified ${verified} predictions`,
       verified,
+      spreadResultsCalculated,
       errors,
       remaining: unverifiedPredictions.length - verified - errors,
     });

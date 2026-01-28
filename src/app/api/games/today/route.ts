@@ -9,7 +9,62 @@ import { getCurrentNBASeason, getSeasonDateRange } from '@/lib/utils/season';
 
 export async function GET() {
   try {
-    const games = await nbaData.getTodaysGames();
+    let games = await nbaData.getTodaysGames();
+
+    // If external API returns no games, fall back to database games for today
+    if (games.length === 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const dbGames = await prisma.game.findMany({
+        where: {
+          gameDate: {
+            gte: today,
+            lt: tomorrow,
+          },
+        },
+        include: {
+          prediction: true,
+          xgboostPrediction: true,
+        },
+      });
+
+      if (dbGames.length > 0) {
+        // Transform database games to match external API format
+        const gamesWithData = dbGames.map((game) => ({
+          id: game.externalId,
+          date: game.gameDate.toISOString().split('T')[0],
+          home_team: {
+            id: game.homeTeamId,
+            full_name: game.homeTeam,
+            name: game.homeTeam.split(' ').pop(),
+            abbreviation: game.homeTeam.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 3),
+          },
+          visitor_team: {
+            id: game.awayTeamId,
+            full_name: game.awayTeam,
+            name: game.awayTeam.split(' ').pop(),
+            abbreviation: game.awayTeam.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 3),
+          },
+          status: game.status,
+          home_team_score: game.homeScore,
+          visitor_team_score: game.awayScore,
+          prediction: game.prediction,
+          odds: game.odds,
+        }));
+
+        return NextResponse.json({
+          data: gamesWithData,
+          meta: {
+            count: dbGames.length,
+            date: new Date().toISOString().split('T')[0],
+            source: 'database',
+          },
+        });
+      }
+    }
 
     // Get predictions for today's games
     const gameIds = games.map((g) => g.id.toString());

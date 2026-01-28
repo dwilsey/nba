@@ -73,6 +73,8 @@ interface GameCardProps {
       awayML: number;
       spread: number;
       total: number;
+      isLive?: boolean;
+      lastUpdate?: string;
     };
   };
 }
@@ -101,6 +103,20 @@ export function GameCard({ game }: GameCardProps) {
     return 'text-slate-400';
   };
 
+  const formatTimeAgo = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${Math.floor(diffHours / 24)}d ago`;
+  };
+
   return (
     <Card className="bg-slate-800/50 border-slate-700 hover:border-slate-600 transition-colors">
       <CardContent className="p-0">
@@ -114,7 +130,7 @@ export function GameCard({ game }: GameCardProps) {
 
             <div className="flex items-center gap-2">
               {prediction.hasValue && (
-                <Badge variant="success\" className="flex items-center gap-1">
+                <Badge variant="success" className="flex items-center gap-1">
                   <DollarSign className="h-3 w-3" />
                   Value
                 </Badge>
@@ -166,18 +182,34 @@ export function GameCard({ game }: GameCardProps) {
           </div>
 
           {/* Quick Odds */}
-          <div className="flex justify-center gap-6 mt-4 text-sm">
-            <div className="text-center">
-              <div className="text-slate-500">ML</div>
-              <div className="text-slate-300">{formatOdds(odds.awayML)} / {formatOdds(odds.homeML)}</div>
+          <div className="mt-4">
+            {/* Odds Status Badge */}
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <Badge
+                variant={odds.isLive ? 'success' : 'secondary'}
+                className="text-xs"
+              >
+                {odds.isLive ? 'LIVE' : 'CLOSING'}
+              </Badge>
+              {odds.lastUpdate && (
+                <span className="text-xs text-slate-500">
+                  Updated {formatTimeAgo(odds.lastUpdate)}
+                </span>
+              )}
             </div>
-            <div className="text-center">
-              <div className="text-slate-500">Spread</div>
-              <div className="text-slate-300">{formatSpread(-odds.spread)} / {formatSpread(odds.spread)}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-slate-500">Total</div>
-              <div className="text-slate-300">O/U {odds.total}</div>
+            <div className="flex justify-center gap-6 text-sm">
+              <div className="text-center">
+                <div className="text-slate-500">ML</div>
+                <div className="text-slate-300">{formatOdds(odds.awayML)} / {formatOdds(odds.homeML)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-slate-500">Spread</div>
+                <div className="text-slate-300">{formatSpread(-odds.spread)} / {formatSpread(odds.spread)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-slate-500">Total</div>
+                <div className="text-slate-300">O/U {odds.total}</div>
+              </div>
             </div>
           </div>
         </div>

@@ -84,13 +84,22 @@ export function ModelAccuracyBanner() {
             </div>
           </div>
 
-          <Link
-            href="/predictions"
-            className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition-colors"
-          >
-            View Details
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Link
+              href="/predictions"
+              className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              View Stats
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/predictions/results"
+              className="flex items-center gap-1 text-sm text-green-400 hover:text-green-300 transition-colors"
+            >
+              View Results
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       </CardContent>
     </Card>
