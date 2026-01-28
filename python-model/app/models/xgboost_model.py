@@ -111,22 +111,51 @@ class XGBoostNBAModel:
         # Average the two methods
         predicted_spread = (predicted_spread + prob_based_spread) / 2
 
-        # Predict total if pace data available
-        projected_pace = features.get("projected_game_pace", 0)
+        # Predict scores and total using pace and ratings
+        projected_pace = features.get("projected_game_pace", 100)
         home_ortg = features.get("home_adj_ortg", 110)
+        home_drtg = features.get("home_adj_drtg", 110)
         away_ortg = features.get("away_adj_ortg", 110)
+        away_drtg = features.get("away_adj_drtg", 110)
 
+        predicted_home_score = None
+        predicted_away_score = None
         predicted_total = None
-        if projected_pace > 0 and home_ortg > 0 and away_ortg > 0:
-            # Simple total estimation
-            avg_ortg = (home_ortg + away_ortg) / 2
-            predicted_total = (avg_ortg / 100) * projected_pace * 2
+
+        if projected_pace > 0:
+            # Calculate expected points per 100 possessions for each team
+            # Home team: their offense vs away defense, with home court boost
+            home_efficiency = (home_ortg + away_drtg) / 2
+            # Away team: their offense vs home defense, penalized for road
+            away_efficiency = (away_ortg + home_drtg) / 2
+
+            # Apply home court advantage (~3 points)
+            home_court_boost = 1.5  # Points per team
+
+            # Calculate scores based on pace (possessions per team per game)
+            possessions = projected_pace  # ~100 possessions per team
+            predicted_home_score = (home_efficiency / 100) * possessions + home_court_boost
+            predicted_away_score = (away_efficiency / 100) * possessions - home_court_boost
+
+            # Ensure scores are reasonable (80-140 range)
+            predicted_home_score = max(80, min(140, predicted_home_score))
+            predicted_away_score = max(80, min(140, predicted_away_score))
+
+            predicted_total = predicted_home_score + predicted_away_score
+
+            # Adjust scores to match predicted spread
+            score_diff = predicted_home_score - predicted_away_score
+            spread_adjustment = (predicted_spread * -1 - score_diff) / 2
+            predicted_home_score += spread_adjustment
+            predicted_away_score -= spread_adjustment
 
         return {
             "home_win_prob": round(home_win_prob, 4),
             "away_win_prob": round(away_win_prob, 4),
             "predicted_spread": round(predicted_spread, 1),
             "predicted_total": round(predicted_total, 1) if predicted_total else None,
+            "predicted_home_score": round(predicted_home_score, 1) if predicted_home_score else None,
+            "predicted_away_score": round(predicted_away_score, 1) if predicted_away_score else None,
             "confidence": round(confidence, 4),
         }
 

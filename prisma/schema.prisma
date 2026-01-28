@@ -99,6 +99,8 @@ model Prediction {
   awayWinProbability  Float
   spreadPrediction    Float?
   totalPrediction     Float?
+  predictedHomeScore  Float?    // Model predicted score
+  predictedAwayScore  Float?    // Model predicted score
   actualWinner        String?
   isCorrect           Boolean?
   gameDate            DateTime
@@ -377,6 +379,8 @@ model XGBoostPrediction {
   predictedWinner     String
   predictedSpread     Float
   predictedTotal      Float?
+  predictedHomeScore  Float?   // Model predicted score
+  predictedAwayScore  Float?   // Model predicted score
   confidence          Float
   featureVector       Json     // Store all 20 features
   modelVersion        String

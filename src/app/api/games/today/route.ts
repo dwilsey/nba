@@ -66,16 +66,24 @@ export async function GET() {
       }
     }
 
-    // Get predictions for today's games
-    const gameIds = games.map((g) => g.id.toString());
-    const predictions = await prisma.prediction.findMany({
+    // Get predictions for today's games by looking up internal game IDs
+    const externalIds = games.map((g) => g.id.toString());
+
+    // Find games in our database to get internal IDs
+    const dbGamesForPredictions = await prisma.game.findMany({
       where: {
-        gameId: { in: gameIds },
+        externalId: { in: externalIds },
+      },
+      include: {
+        prediction: true,
       },
     });
 
+    // Map external ID to prediction
     const predictionsMap = new Map(
-      predictions.map((p) => [p.gameId, p])
+      dbGamesForPredictions
+        .filter((g) => g.prediction)
+        .map((g) => [g.externalId, g.prediction])
     );
 
     // Generate predictions on-demand for games without existing predictions

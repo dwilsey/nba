@@ -80,6 +80,8 @@ class PredictionResponse(BaseModel):
     predicted_winner: str
     predicted_spread: float
     predicted_total: Optional[float]
+    predicted_home_score: Optional[float] = None
+    predicted_away_score: Optional[float] = None
     confidence: float
     model_version: str
     feature_vector: dict
@@ -243,6 +245,8 @@ async def predict_game(request: PredictionRequest, req: Request) -> PredictionRe
         else request.away_team.team_name,
         predicted_spread=prediction["predicted_spread"],
         predicted_total=prediction.get("predicted_total"),
+        predicted_home_score=prediction.get("predicted_home_score"),
+        predicted_away_score=prediction.get("predicted_away_score"),
         confidence=prediction["confidence"],
         model_version=settings.model_version,
         feature_vector=feature_vector,
@@ -280,6 +284,8 @@ async def predict_batch(request: BatchPredictionRequest, req: Request) -> BatchP
                 else game_request.away_team.team_name,
                 predicted_spread=prediction["predicted_spread"],
                 predicted_total=prediction.get("predicted_total"),
+                predicted_home_score=prediction.get("predicted_home_score"),
+                predicted_away_score=prediction.get("predicted_away_score"),
                 confidence=prediction["confidence"],
                 model_version=settings.model_version,
                 feature_vector=feature_vector,
